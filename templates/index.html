@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Research Agent</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-icon">🤖</div>
+
+            <div>
+                <h2>AI Agent</h2>
+                <span>Research Assistant</span>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <div class="status-dot"></div>
+
+            <div>
+                <strong>AI Online</strong>
+                <p>Ready to assist you</p>
+            </div>
+        </div>
+
+        <p class="section-title">CAPABILITIES</p>
+
+        <div class="capability">
+            <span>💬</span>
+            <div>
+                <strong>Text Questions</strong>
+                <small>Ask anything</small>
+            </div>
+        </div>
+
+        <div class="capability">
+            <span>🎙️</span>
+            <div>
+                <strong>Voice Input</strong>
+                <small>Speak naturally</small>
+            </div>
+        </div>
+
+        <div class="capability">
+            <span>🌐</span>
+            <div>
+                <strong>Web Research</strong>
+                <small>Current information</small>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            Powered by Gemini • Flask
+        </div>
+
+    </aside>
+
+
+    <main class="main">
+
+        <div class="topbar">
+
+            <div>
+                <div class="eyebrow">YOUR PERSONAL AI</div>
+
+                <h1>
+                    What can I help you with?
+                </h1>
+
+                <p class="subtitle">
+                    Ask questions, research topics, or speak directly
+                    with your AI assistant.
+                </p>
+            </div>
+
+            <div class="online-badge">
+                <span></span>
+                Online
+            </div>
+
+        </div>
+
+
+        <div class="workspace">
+
+            <div class="input-card">
+
+                <div class="card-title">
+                    <div class="title-icon">✨</div>
+
+                    <div>
+                        <h3>Ask a Question</h3>
+                        <p>Type your question below</p>
+                    </div>
+                </div>
+
+
+                <textarea
+                    id="question"
+                    placeholder="What would you like to know?"
+                ></textarea>
+
+
+                <div class="input-footer">
+
+                    <span class="hint">
+                        Ask anything you want to know
+                    </span>
+
+                    <button
+                        class="ask-button"
+                        onclick="askQuestion()">
+
+                        Ask AI →
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div class="voice-card">
+
+                <div class="mic-circle">
+                    🎙️
+                </div>
+
+                <h3>Talk to your AI</h3>
+
+                <p>
+                    Speak naturally and let your AI
+                    assistant understand your question.
+                </p>
+
+                <button
+                    id="recordButton"
+                    class="record-button"
+                    onclick="toggleRecording()">
+
+                    🎙️ Start Recording
+
+                </button>
+
+                <div
+                    id="recordStatus"
+                    class="record-status">
+
+                    Click to start speaking.
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div
+            id="loading"
+            class="loading"
+            style="display:none;">
+
+            <div class="spinner"></div>
+
+            <div>
+                <strong>AI is thinking...</strong>
+                <p>Processing your request</p>
+            </div>
+
+        </div>
+
+
+        <div
+            id="answer"
+            class="answer-card"
+            style="display:none;">
+
+            <div class="answer-title">
+                ✨ AI Response
+            </div>
+
+            <div
+                id="answerText"
+                class="answer-text">
+            </div>
+
+        </div>
+
+
+        <div
+            id="sources"
+            class="sources-card"
+            style="display:none;">
+
+            <h3>🌐 Research Sources</h3>
+
+            <div id="sourceList"></div>
+
+        </div>
+
+
+        <div
+            id="error"
+            class="error-card"
+            style="display:none;">
+        </div>
+
+
+        <footer>
+            AI Research Agent • Built with Python & Flask
+        </footer>
+
+    </main>
+
+</div>
+
+
+<script>
+
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
+
+async function askQuestion() {
+
+    const question =
+        document.getElementById("question")
+        .value.trim();
+
+    if (!question) {
+
+        showError("Please enter a question.");
+
+        return;
+    }
+
+    hideError();
+
+    showLoading();
+
+    try {
+
+        const response =
+            await fetch("/ask", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    question: question
+                })
+
+            });
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error || "Request failed."
+            );
+
+        }
+
+
+        showAnswer(data.answer);
+
+        showSources(data.sources);
+
+    }
+    catch (error) {
+
+        showError(error.message);
+
+    }
+    finally {
+
+        hideLoading();
+
+    }
+}
+
+
+async function toggleRecording() {
+
+    if (isRecording) {
+
+        mediaRecorder.stop();
+
+        isRecording = false;
+
+        return;
+    }
+
+
+    try {
+
+        const stream =
+            await navigator.mediaDevices
+            .getUserMedia({
+                audio: true
+            });
+
+
+        audioChunks = [];
+
+
+        mediaRecorder =
+            new MediaRecorder(stream);
+
+
+        mediaRecorder.ondataavailable =
+            event => {
+
+                if (event.data.size > 0) {
+
+                    audioChunks.push(
+                        event.data
+                    );
+
+                }
+
+            };
+
+
+        mediaRecorder.onstop =
+            () => {
+
+                const audioBlob =
+                    new Blob(
+                        audioChunks,
+                        {
+                            type: "audio/webm"
+                        }
+                    );
+
+
+                stream.getTracks().forEach(
+                    track => track.stop()
+                );
+
+
+                sendVoice(audioBlob);
+
+            };
+
+
+        mediaRecorder.start();
+
+        isRecording = true;
+
+
+        document.getElementById(
+            "recordButton"
+        ).innerHTML =
+            "⏹️ Stop Recording";
+
+
+        document.getElementById(
+            "recordButton"
+        ).classList.add("recording");
+
+
+        document.getElementById(
+            "recordStatus"
+        ).innerText =
+            "🔴 Recording... Speak now.";
+
+    }
+    catch (error) {
+
+        showError(
+            "Please allow microphone access."
+        );
+
+    }
+}
+
+
+async function sendVoice(audioBlob) {
+
+    showLoading();
+
+    try {
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "audio",
+            audioBlob,
+            "voice.webm"
+        );
+
+
+        const response =
+            await fetch("/voice", {
+
+                method: "POST",
+
+                body: formData
+
+            });
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error || "Voice processing failed."
+            );
+
+        }
+
+
+        showAnswer(data.answer);
+
+        showSources(data.sources);
+
+        document.getElementById(
+            "recordStatus"
+        ).innerText =
+            "✓ Voice processed successfully.";
+
+    }
+    catch (error) {
+
+        showError(error.message);
+
+    }
+    finally {
+
+        document.getElementById(
+            "recordButton"
+        ).innerHTML =
+            "🎙️ Start Recording";
+
+        document.getElementById(
+            "recordButton"
+        ).classList.remove("recording");
+
+        hideLoading();
+
+    }
+}
+
+
+function showAnswer(answer) {
+
+    document.getElementById(
+        "answer"
+    ).style.display = "block";
+
+
+    document.getElementById(
+        "answerText"
+    ).innerText = answer;
+
+}
+
+
+function showSources(sources) {
+
+    const section =
+        document.getElementById("sources");
+
+    const list =
+        document.getElementById("sourceList");
+
+
+    if (!sources || sources.length === 0) {
+
+        section.style.display = "none";
+
+        return;
+    }
+
+
+    section.style.display = "block";
+
+    list.innerHTML = "";
+
+
+    sources.forEach((source, index) => {
+
+        const div =
+            document.createElement("div");
+
+        div.className = "source";
+
+        div.innerHTML =
+            `<b>${index + 1}. ${source.title}</b>
+             <p>${source.snippet || ""}</p>`;
+
+        list.appendChild(div);
+
+    });
+
+}
+
+
+function showLoading() {
+
+    document.getElementById(
+        "loading"
+    ).style.display = "flex";
+
+}
+
+
+function hideLoading() {
+
+    document.getElementById(
+        "loading"
+    ).style.display = "none";
+
+}
+
+
+function showError(message) {
+
+    const error =
+        document.getElementById("error");
+
+    error.style.display = "block";
+
+    error.innerText =
+        "⚠️ " + message;
+
+}
+
+
+function hideError() {
+
+    document.getElementById(
+        "error"
+    ).style.display = "none";
+
+}
+
+</script>
+
+</body>
+</html>
